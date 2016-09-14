@@ -22,7 +22,7 @@ int main()
 		len = read(fd,response,40);
 		printf("read len = %d\n",len);
 		printf("read value = %s\n",response);
-		addr = ioctl(fd,1);
+		ioctl(fd,1,&addr);
 		printf("addr phys is 0x%016lx\n",addr);
 	}
 	close(fd);

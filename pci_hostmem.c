@@ -113,10 +113,12 @@ static ssize_t dev_write (struct file * filp, __user const char *buff, size_t co
 }
 
 static long dev_ioctl (struct file *file, unsigned int cmd,	unsigned long arg){
-	// return phys address;
+	// return phys address
+	printk("ioctl cmd=%d\n",cmd);
+	printk("bus addr is 0x%016lx\n",(unsigned long) dma_handle);
 	if (cmd == 1) {
-		return (long)dma_handle;
-	}
+		put_user(dma_handle,(unsigned long*)arg);
+	} 
 	return 0;
 }
 
