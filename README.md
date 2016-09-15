@@ -23,3 +23,6 @@ and change permissions:
 > sudo chmod 666 /dev/hostmem.
 
 Write a C program using file operations (open, read, write, close) to access the buffer (see test_hostmem.c).
+
+Multi buffer mode. Several buffers could be opened and access in with the driver in the same time. 
+For example a buffer for RX part and another for TX part.
