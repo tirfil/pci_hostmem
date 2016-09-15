@@ -23,8 +23,16 @@ int major = 60;
 
 MODULE_DEVICE_TABLE(pci, ids);
 
-void *vaddr;
-dma_addr_t dma_handle;
+
+struct pci_dev *pdev;
+
+struct priv_data {
+	void* vaddr;
+	dma_addr_t dma_handle;
+};
+
+//void *vaddr;
+//dma_addr_t dma_handle;
 
 static unsigned char get_revision(struct pci_dev *dev)
 {
@@ -47,10 +55,7 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	
 	pci_set_master(dev);
 	
-	printk("allocate 0x%08lx\n",PAGE_SIZE);
-	vaddr = pci_alloc_consistent(dev,PAGE_SIZE,&dma_handle);
-	printk("virtual addr is 0x%016lx\n",(unsigned long)vaddr);
-	printk("bus addr is 0x%016lx\n",(unsigned long) dma_handle);
+	pdev = dev;
 	
 	return 0;
 }
@@ -62,7 +67,7 @@ static void pci_remove(struct pci_dev *dev)
 	 */
 	 printk("remove\n");
 	 
-	 pci_free_consistent(dev,PAGE_SIZE,vaddr,dma_handle);
+	 
 }
 
 static struct file_operations dev_fops =
@@ -78,12 +83,28 @@ static struct file_operations dev_fops =
 
 static int dev_open (struct inode *inode, struct file *filp)
 {
+  struct priv_data *pd = kmalloc(sizeof(struct priv_data),GFP_KERNEL);
+  void *vaddr;
+  dma_addr_t dma_handle;
+  
+  printk("open\n");
+  printk("allocate 0x%08lx\n",PAGE_SIZE);
+  vaddr = pci_alloc_consistent(pdev,PAGE_SIZE,&dma_handle);
+  printk("virtual addr is 0x%016lx\n",(unsigned long)vaddr);
+  printk("bus addr is 0x%016lx\n",(unsigned long) dma_handle);
+  pd->vaddr=vaddr;
+  pd->dma_handle=dma_handle;
+  filp->private_data = pd;
   return (0);
 }
 
 
 static int dev_close (struct inode *inode, struct file *filp)
 {
+  struct priv_data *pd = filp->private_data;
+  printk("close\n");
+  pci_free_consistent(pdev,PAGE_SIZE,pd->vaddr,pd->dma_handle);
+  kfree(filp->private_data);
   return (0);
 }
 
@@ -91,9 +112,11 @@ static ssize_t dev_read (struct file * filp, char *buff, size_t count, loff_t * 
 {
   /* Transfering data to user space */ 
   unsigned long ul;
+
+  struct priv_data *pd = filp->private_data;
   printk("read count=0x%08lx\n",count);
   // copy_to_user returns bytes _not_ read
-  ul = copy_to_user(buff,vaddr,count);
+  ul = copy_to_user(buff,pd->vaddr,count);
   printk("read 0x%08lx\n",count - ul);
   return count - ul;
   
@@ -104,9 +127,11 @@ static ssize_t dev_write (struct file * filp, __user const char *buff, size_t co
 {
   // read from user space
   unsigned long ul;
-  printk("write count=0x%08lx\n",count);
+
+  struct priv_data *pd = filp->private_data;
+    printk("write count=0x%08lx\n",count);
   // copy_from_user returns bytes _not_ write
-  ul = copy_from_user(vaddr,buff,count);
+  ul = copy_from_user(pd->vaddr,buff,count);
   printk("write 0x%08lx\n",count - ul);
   return count - ul;
  
@@ -114,10 +139,10 @@ static ssize_t dev_write (struct file * filp, __user const char *buff, size_t co
 
 static long dev_ioctl (struct file *file, unsigned int cmd,	unsigned long arg){
 	// return phys address
+	struct priv_data *pd = file->private_data;
 	printk("ioctl cmd=%d\n",cmd);
-	printk("bus addr is 0x%016lx\n",(unsigned long) dma_handle);
 	if (cmd == 1) {
-		put_user(dma_handle,(unsigned long*)arg);
+		put_user(pd->dma_handle,(unsigned long*)arg);
 	} 
 	return 0;
 }
